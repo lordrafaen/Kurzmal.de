@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Handwerker Angebots-App Pro v2.2</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/docx@8.2.3/build/index.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+
+    <style>
+        :root { --primary: #0f172a; --accent: #2563eb; --bg: #f1f5f9; --card: #ffffff; --text: #334155; --success: #10b981; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 20px; max-width: 1100px; margin: auto; }
+        
+        .card { background: var(--card); border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border: 1px solid #e2e8f0; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
+        .grid-small { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto; gap: 10px; align-items: end; }
+        
+        h1 { color: var(--primary); font-size: 1.8rem; margin-bottom: 0.5em; }
+        h3 { color: var(--accent); margin-top: 0; font-size: 1.2rem; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; }
+
+        input, textarea, select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; margin-top: 5px; }
+        label { font-weight: 600; font-size: 0.85rem; color: #64748b; margin-top: 10px; display: block; }
+
+        /* Kategorien Accordion */
+        details { margin-bottom: 8px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background: white; }
+        summary { background: #f8fafc; padding: 12px 15px; cursor: pointer; font-weight: 600; display: flex; justify-content: space-between; }
+        .cat-content { padding: 10px; display: flex; flex-wrap: wrap; gap: 8px; border-top: 1px solid #e2e8f0; }
+
+        button { cursor: pointer; border: none; border-radius: 6px; padding: 8px 12px; font-size: 0.9rem; transition: all 0.2s; }
+        .btn-item { background: #eff6ff; color: var(--accent); border: 1px solid #dbeafe; }
+        .btn-item:hover { background: var(--accent); color: white; }
+        .btn-item.disabled { background: #e2e8f0; color: #94a3b8; cursor: not-allowed; border-color: #cbd5e1; }
+        
+        .btn-action { background: var(--accent); color: white; padding: 12px 20px; font-size: 1rem; width: 100%; font-weight: bold; margin-top: 10px; }
+        .btn-add-custom { background: var(--success); color: white; height: 42px; margin-top: 5px; width: 100%; }
+        .btn-word { background: #10b981; } 
+        .btn-remove { background: #fee2e2; color: #ef4444; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+
+        /* Tabelle */
+        .table-container { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; min-width: 600px; }
+        th { text-align: left; background: #f8fafc; padding: 10px; color: #475569; font-size: 0.85rem; text-transform: uppercase; }
+        td { padding: 10px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+        
+        tr.cat-header td { background-color: #f1f5f9; font-weight: bold; color: var(--primary); padding-top: 15px; border-bottom: 2px solid #cbd5e1; }
+
+        .result-box { background: #f8fafc; padding: 20px; border-radius: 8px; text-align: right; }
+        .total-line { font-size: 1.4rem; font-weight: bold; color: var(--accent); margin-top: 10px; display: block; }
+        #logo-preview { max-height: 80px; margin-top: 10px; display: block; }
+
+        @media (max-width: 768px) {
+            .grid-small { grid-template-columns: 1fr; gap: 5px; }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Angebots-Generator <span style="font-size:0.5em; color:#94a3b8">v2.2</span></h1>
+
+    <div class="grid">
+        <div class="card">
+            <h3>Ihre Firmendaten</h3>
+            <input id="s_name" type="text" placeholder="Ihr Name / Inhaber" oninput="saveData()">
+            <input id="s_comp" type="text" placeholder="Firmenname" oninput="saveData()">
+            <textarea id="s_addr" rows="3" placeholder="Straße, PLZ, Ort, Telefon, E-Mail" oninput="saveData()"></textarea>
+            <label>Firmenlogo</label>
+            <input type="file" id="logo_input" accept="image/*">
+            <img id="logo-preview" src="" style="display:none">
+        </div>
+
+        <div class="card">
+            <h3>Kunde & Projektdaten</h3>
+            <input id="c_name" type="text" placeholder="Kundenname">
+            <textarea id="c_addr" rows="2" placeholder="Kundenanschrift"></textarea>
+            <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 10px; margin-top:0;">
+                <div><label>Angebots-Nr.</label><input id="c_nr" type="text" value="AG-2025-001"></div>
+                <div><label>Datum</label><input id="c_date" type="date"></div>
+            </div>
+            <label>Objekt / Betreff</label>
+            <input id="c_obj" type="text" placeholder="z.B. Sanierung Musterstraße 1">
+            <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div>
+                    <label>Abrechnung</label>
+                    <select id="b_type" onchange="calc()">
+                        <option value="einmalig">Einmalig</option>
+                        <option value="monatlich">Monatlich</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Laufzeit (Monate)</label>
+                    <input id="b_run" type="number" value="12" oninput="calc()">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" style="border: 2px solid var(--accent);">
+        <h3>Manuelle Position hinzufügen</h3>
+        <p style="font-size:0.9em; color:#64748b; margin-top:-5px; margin-bottom:10px;">Fehlt etwas? Fügen Sie hier eine eigene Leistung hinzu.</p>
+        <div class="grid-small">
+            <div>
+                <label style="margin-top:0">Bezeichnung</label>
+                <input type="text" id="m_name" placeholder="z.B. Sonderfahrt">
+            </div>
+            <div>
+                <label style="margin-top:0">Kategorie</label>
+                <input type="text" id="m_cat" list="cat_list" placeholder="Sonstiges">
+                <datalist id="cat_list"></datalist> </div>
+            <div>
+                <label style="margin-top:0">Std/Einheit</label>
+                <input type="number" id="m_std" value="1" step="0.5">
+            </div>
+            <div>
+                <label style="margin-top:0">Preis (€)</label>
+                <input type="number" id="m_rate" value="50" step="1">
+            </div>
+            <div>
+                <button class="btn-add-custom" onclick="addManualPos()">+ Einfügen</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Leistungskatalog (Vorauswahl)</h3>
+        <div id="catalog-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Positionen im Angebot</h3>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 40%;">Leistung</th>
+                        <th style="width: 12%;">Menge</th>
+                        <th style="width: 12%;">Std/Einh.</th>
+                        <th style="width: 15%;">Preis (€)</th>
+                        <th style="width: 15%;">Gesamt</th>
+                        <th style="width: 5%;"></th>
+                    </tr>
+                </thead>
+                <tbody id="pos-table"></tbody>
+            </table>
+        </div>
+        <div id="empty-msg" style="text-align:center; padding:20px; color:#94a3b8; font-style:italic;">Noch keine Positionen ausgewählt.</div>
+    </div>
+
+    <div class="card">
+        <h3>Kalkulation</h3>
+        <div class="grid">
+            <div>
+                <label>Pauschale Anfahrt (€)</label>
+                <input type="number" id="v_travel" value="45.00" oninput="calc()">
+            </div>
+            <div>
+                <label>MwSt</label>
+                <select id="v_vat" onchange="calc()">
+                    <option value="0.19">19 % MwSt</option>
+                    <option value="0.07">7 % MwSt</option>
+                    <option value="0">0 % (Kleinunternehmer)</option>
+                </select>
+            </div>
+            <div>
+                <label>Risikozuschlag (Multiplikator)</label>
+                <select id="v_risk" onchange="calc()">
+                    <option value="1.0">Kein Zuschlag (1.0)</option>
+                    <option value="1.10">10 % Erschwernis</option>
+                    <option value="1.20">20 % Eilig / Notdienst</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="result-box" style="margin-top:20px;">
+            <div id="res-net">Netto: 0.00 €</div>
+            <div id="res-vat">MwSt: 0.00 €</div>
+            <span id="res-total" class="total-line">Gesamt: 0.00 €</span>
+        </div>
+
+        <div class="grid" style="margin-top:20px;">
+            <button class="btn-action" onclick="exportPDF()">📄 PDF Herunterladen</button>
+            <button class="btn-action btn-word" onclick="exportWord()">📝 Word (.docx) Herunterladen</button>
+        </div>
+    </div>
+
+<script>
+    // --- DATENBANK (ERWEITERT) ---
+    const categories = {
+        "Entrümpelung & Räumung": [
+            {name: "Wohnungs-Entrümpelung", std: 5, rate: 55},
+            {name: "Keller-/Dachbodenräumung", std: 3, rate: 50},
+            {name: "Messie-Wohnung", std: 10, rate: 85},
+            {name: "Gewerbeflächen räumen", std: 8, rate: 65},
+            {name: "Teil-Entrümpelung", std: 2, rate: 55},
+            {name: "Sondermüllentsorgung (Pauschale)", std: 1, rate: 180},
+            {name: "Containerbereitstellung & Entsorgung", std: 1, rate: 280},
+            {name: "Entsorgungsfahrten", std: 1.5, rate: 60},
+            {name: "Fugenziehen & Reinigung nach Entrümpelung", std: 2, rate: 50},
+            {name: "Möbelabbau vor Transport", std: 2, rate: 55}
+        ],
+        "Abbruch & Demontage": [
+            {name: "Küchenrückbau komplett", std: 4, rate: 60},
+            {name: "Bodenbeläge entfernen (Teppich, Fliesen, Laminat)", std: 1, rate: 55},
+            {name: "Sanitär-Demontage (Waschbecken, Toilette)", std: 1, rate: 60},
+            {name: "Leichtbauwände abreißen", std: 3, rate: 65},
+            {name: "Deckenverkleidungen entfernen", std: 2, rate: 55},
+            {name: "Türen und Fenster ausbauen", std: 1, rate: 60},
+            {name: "Fliesen entfernen (Wand, Boden)", std: 2, rate: 65},
+            {name: "Altputz entfernen", std: 2, rate: 60},
+            {name: "Kabel und Leitungen demontieren", std: 1, rate: 65}
+        ],
+        "Hausmeisterservice": [
+            {name: "Kleinreparaturen (Türschloss, Wasserhahn)", std: 1, rate: 55},
+            {name: "Objektkontrollen (Schließdienst)", std: 1, rate: 45},
+            {name: "Winterdienst (Schnee räumen, Streuen)", std: 1, rate: 75},
+            {name: "Grünflächenpflege (Rasen mähen, Schnitt)", std: 2, rate: 50},
+            {name: "Mülltonnenservice (Reinigung, Bereitstellung)", std: 0.5, rate: 40},
+            {name: "Beleuchtungswartung (Lampentausch)", std: 0.5, rate: 50},
+            {name: "Haustechnik-Überwachung", std: 1, rate: 65}
+        ],
+        "Reinigung": [
+            {name: "Grundreinigung (Fenster, Böden, Wände)", std: 4, rate: 45},
+            {name: "Bauendreinigung", std: 5, rate: 55},
+            {name: "Spezialreinigung (Graffiti, Öl)", std: 3, rate: 85},
+            {name: "Fassadenreinigung", std: 4, rate: 80},
+            {name: "Teppichreinigung (Shampoonieren)", std: 2, rate: 50},
+            {name: "Glas- und Fensterreinigung (inkl. Rahmen)", std: 1.5, rate: 45},
+            {name: "Treppenhausreinigung", std: 1, rate: 40},
+            {name: "Sanitärreinigung", std: 1.5, rate: 45}
+        ],
+        "Transport & Logistik": [
+            {name: "Möbeltransport", std: 2, rate: 55},
+            {name: "Etagenzuschlag (pro Etage ohne Aufzug)", std: 1, rate: 25},
+            {name: "Lange Laufwege (>50m)", std: 1, rate: 30},
+            {name: "Kein Aufzug (Mehraufwand)", std: 1, rate: 40},
+            {name: "Parkverbotszone (Genehmigungen)", std: 1, rate: 90},
+            {name: "Be- und Entladehilfe", std: 1, rate: 45},
+            {name: "Verpackung und Schutzmaßnahmen", std: 1, rate: 45}
+        ],
+        "Renovierung Innenraum": [
+            {name: "Boden neu verlegen (Laminat/Parkett)", std: 3, rate: 60},
+            {name: "Wände spachteln (Risse, Löcher)", std: 2, rate: 60},
+            {name: "Wände streichen (Dispersionsfarbe)", std: 2, rate: 50},
+            {name: "Decken abhängen", std: 4, rate: 70},
+            {name: "Decken streichen", std: 2, rate: 55},
+            {name: "Elektrik: Lampenmontage", std: 0.5, rate: 65},
+            {name: "Elektrik: Steckdoseninstallation", std: 0.5, rate: 65},
+            {name: "Küchen Einbau", std: 5, rate: 70},
+            {name: "Türen und Zargen montieren", std: 2, rate: 65},
+            {name: "Sanitäre Installation (Armaturen, WC)", std: 2, rate: 70},
+            {name: "Fliesen legen", std: 4, rate: 75},
+            {name: "Heizkörpermontage / -tausch", std: 2, rate: 70}
+        ],
+        "Sonderaufwände & Risiken": [
+            {name: "Asbestverdacht (Vorbereitung)", std: 2, rate: 120},
+            {name: "Mineralwolle/Glaswolle (Schutz)", std: 2, rate: 90},
+            {name: "Stark verschmutzte Räume (Bio)", std: 2, rate: 95},
+            {name: "Sehr hohe Decken (>3,5m)", std: 1, rate: 50},
+            {name: "Nacht-/Wochenendarbeit Zuschlag", std: 1, rate: 150},
+            {name: "Erschwerte Zugänglichkeit", std: 1, rate: 40},
+            {name: "Gefahrstoffe (Schimmel)", std: 2, rate: 110},
+            {name: "Baustellenabsicherung", std: 2, rate: 60},
+            {name: "Staubschutzwände aufbauen", std: 1, rate: 55}
+        ],
+        "Koordination & Organisation": [
+            {name: "Terminvereinbarung mit Elektriker", std: 0.5, rate: 75},
+            {name: "Terminvereinbarung Gas/Wasser", std: 0.5, rate: 75},
+            {name: "Abstimmung Maler/Bodenleger", std: 1, rate: 75},
+            {name: "Koordination Handwerker vor Ort", std: 2, rate: 85},
+            {name: "Überwachung von Terminen/Fristen", std: 1, rate: 80},
+            {name: "Materialbestellung und Nachverfolgung", std: 1, rate: 65},
+            {name: "Dokumentation von Arbeiten", std: 1, rate: 65},
+            {name: "Kommunikation mit Bauherr", std: 1, rate: 75},
+            {name: "Klärung von Sonderwünschen", std: 1, rate: 75},
+            {name: "Einholen von Genehmigungen", std: 2, rate: 85},
+            {name: "Organisation Abfall/Container", std: 1, rate: 70},
+            {name: "Nachbearbeitung & Qualitätssicherung", std: 1.5, rate: 80},
+            {name: "Erstellung von Protokollen", std: 1, rate: 75}
+        ]
+    };
+
+    let positions = [];
+    let logoData = null;
+
+    // --- INITIALISIERUNG ---
+    window.onload = function() {
+        renderCatalog();
+        populateDatalist();
+        loadSettings();
+        document.getElementById('c_date').valueAsDate = new Date();
+    };
+
+    function populateDatalist() {
+        const dl = document.getElementById('cat_list');
+        dl.innerHTML = '';
+        Object.keys(categories).forEach(k => {
+            let opt = document.createElement('option');
+            opt.value = k;
+            dl.appendChild(opt);
+        });
+    }
+
+    function renderCatalog() {
+        const container = document.getElementById('catalog-container');
+        for (const [catName, items] of Object.entries(categories)) {
+            const details = document.createElement('details');
+            const summary = document.createElement('summary');
+            summary.textContent = catName;
+            details.appendChild(summary);
+
+            const content = document.createElement('div');
+            content.className = 'cat-content';
+            
+            items.forEach(item => {
+                const btn = document.createElement('button');
+                btn.className = 'btn-item';
+                btn.textContent = item.name;
+                btn.id = `btn-${item.name.replace(/\W/g, '')}`; 
+                btn.onclick = () => addPosition(item.name, catName, item.std, item.rate, btn);
+                content.appendChild(btn);
+            });
+            details.appendChild(content);
+            container.appendChild(details);
+        }
+    }
+
+    // --- HINZUFÜGEN LOGIK ---
+    function addPosition(name, category, std, rate, btnElement) {
+        // Duplikat Check
+        if (positions.some(p => p.name === name)) {
+            alert("Diese Position ist bereits im Angebot!");
+            return;
+        }
+
+        positions.push({ name, category, qty: 1, std: parseFloat(std), rate: parseFloat(rate) });
+        
+        if(btnElement) btnElement.classList.add('disabled');
+        renderTable();
+        calc();
+    }
+
+    function addManualPos() {
+        const name = document.getElementById('m_name').value.trim();
+        const cat = document.getElementById('m_cat').value.trim() || "Sonstiges";
+        const std = document.getElementById('m_std').value;
+        const rate = document.getElementById('m_rate').value;
+
+        if(!name) return alert("Bitte eine Bezeichnung eingeben.");
+
+        addPosition(name, cat, std, rate, null);
+
+        // Reset Felder
+        document.getElementById('m_name').value = '';
+        document.getElementById('m_cat').value = '';
+    }
+    // --- RENDERING ---
+    function renderTable() {
+        const tbody = document.getElementById('pos-table');
+        const emptyMsg = document.getElementById('empty-msg');
+        const riskFactor = parseFloat(document.getElementById('v_risk').value) || 1.0;
+        
+        tbody.innerHTML = '';
+        if (positions.length === 0) {
+            emptyMsg.style.display = 'block';
+            return;
+        }
+        emptyMsg.style.display = 'none';
+
+        // 1. Kategorien sammeln (Standards zuerst, dann Custom)
+        const standardCats = Object.keys(categories);
+        const usedCats = [...new Set(positions.map(p => p.category))];
+        
+        // Sortieren: Zuerst die, die im Katalog sind (in Katalog-Reihenfolge), dann der Rest alphabetisch
+        usedCats.sort((a, b) => {
+            const idxA = standardCats.indexOf(a);
+            const idxB = standardCats.indexOf(b);
+            if(idxA !== -1 && idxB !== -1) return idxA - idxB;
+            if(idxA !== -1) return -1;
+            if(idxB !== -1) return 1;
+            return a.localeCompare(b);
+        });
+
+        usedCats.forEach(catName => {
+            const catItems = positions.filter(p => p.category === catName);
+            
+            // Kategorie Header
+            const headerRow = tbody.insertRow();
+            headerRow.className = "cat-header";
+            headerRow.innerHTML = `<td colspan="6">${catName}</td>`;
+
+            catItems.forEach(pos => {
+                const originalIndex = positions.indexOf(pos);
+                const sum = (pos.qty * pos.std * pos.rate * riskFactor).toFixed(2);
+                const row = tbody.insertRow();
+                row.innerHTML = `
+                    <td>${pos.name}</td>
+                    <td><input type="number" min="0.1" step="0.1" value="${pos.qty}" oninput="updatePos(${originalIndex}, 'qty', this.value)"></td>
+                    <td><input type="number" min="0.1" step="0.1" value="${pos.std}" oninput="updatePos(${originalIndex}, 'std', this.value)"></td>
+                    <td><input type="number" min="0" step="1" value="${pos.rate}" oninput="updatePos(${originalIndex}, 'rate', this.value)"></td>
+                    <td style="font-weight:bold">${sum} €</td>
+                    <td><button class="btn-remove" onclick="removePos(${originalIndex})">✕</button></td>
+                `;
+            });
+        });
+
+        updateCatalogButtons();
+    }
+
+    function updateCatalogButtons() {
+        document.querySelectorAll('.btn-item').forEach(btn => btn.classList.remove('disabled'));
+        positions.forEach(p => {
+            const btnId = `btn-${p.name.replace(/\W/g, '')}`;
+            const btn = document.getElementById(btnId);
+            if(btn) btn.classList.add('disabled');
+        });
+    }
+
+    function updatePos(index, field, value) {
+        positions[index][field] = parseFloat(value) || 0;
+        renderTable(); 
+        calc();
+    }
+
+    function removePos(index) {
+        positions.splice(index, 1);
+        renderTable();
+        calc();
+    }
+
+    // --- BERECHNUNG ---
+    function calc() {
+        const riskFactor = parseFloat(document.getElementById('v_risk').value) || 1.0;
+        let subtotal = 0;
+        positions.forEach(pos => {
+            subtotal += (pos.qty * pos.std * pos.rate * riskFactor);
+        });
+
+        const travel = parseFloat(document.getElementById('v_travel').value) || 0;
+        const vatRate = parseFloat(document.getElementById('v_vat').value) || 0;
+        
+        const net = subtotal + travel;
+        const tax = net * vatRate;
+        const gross = net + tax;
+
+        document.getElementById('res-net').textContent = `Netto: ${net.toFixed(2)} €`;
+        document.getElementById('res-vat').textContent = `MwSt (${(vatRate*100).toFixed(0)}%): ${tax.toFixed(2)} €`;
+        
+        const isMonthly = document.getElementById('b_type').value === 'monatlich';
+        document.getElementById('res-total').textContent = `Gesamt: ${gross.toFixed(2)} € ${isMonthly?'/ Monat':''}`;
+    }
+
+    // --- STORAGE & LOGO ---
+    document.getElementById('logo_input').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+            logoData = evt.target.result;
+            document.getElementById('logo-preview').src = logoData;
+            document.getElementById('logo-preview').style.display = 'block';
+            saveData();
+        };
+        reader.readAsDataURL(file);
+    });
+
+    function saveData() {
+        const data = {
+            name: document.getElementById('s_name').value,
+            comp: document.getElementById('s_comp').value,
+            addr: document.getElementById('s_addr').value,
+            logo: logoData
+        };
+        localStorage.setItem('handwerkerApp_v2.2', JSON.stringify(data));
+    }
+
+    function loadSettings() {
+        const data = JSON.parse(localStorage.getItem('handwerkerApp_v2.2'));
+        if (data) {
+            document.getElementById('s_name').value = data.name || '';
+            document.getElementById('s_comp').value = data.comp || '';
+            document.getElementById('s_addr').value = data.addr || '';
+            if (data.logo) {
+                logoData = data.logo;
+                document.getElementById('logo-preview').src = logoData;
+                document.getElementById('logo-preview').style.display = 'block';
+            }
+        }
+    }
+
+    // --- EXPORTS ---
+    // Helper to get grouped data
+    function getGroupedData() {
+        const standardCats = Object.keys(categories);
+        const usedCats = [...new Set(positions.map(p => p.category))];
+        usedCats.sort((a, b) => {
+            const idxA = standardCats.indexOf(a);
+            const idxB = standardCats.indexOf(b);
+            if(idxA !== -1 && idxB !== -1) return idxA - idxB;
+            if(idxA !== -1) return -1;
+            if(idxB !== -1) return 1;
+            return a.localeCompare(b);
+        });
+        return usedCats;
+    }
+
+    async function exportPDF() {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        const riskFactor = parseFloat(document.getElementById('v_risk').value) || 1.0;
+        let y = 20;
+
+        if (logoData) doc.addImage(logoData, 'JPEG', 150, 15, 40, 20);
+        doc.setFontSize(8); doc.setTextColor(100); doc.text("Absender:", 20, y); y += 5;
+        doc.setFontSize(10); doc.setTextColor(0);
+        doc.text(document.getElementById('s_comp').value, 20, y); y += 5;
+        doc.text(document.getElementById('s_name').value, 20, y); y += 5;
+        const addrLines = document.getElementById('s_addr').value.split('\n');
+        addrLines.forEach(l => { doc.text(l, 20, y); y += 5; });
+
+        y = 65;
+        doc.setFont(undefined, 'bold'); doc.text("Empfänger:", 20, y);
+        doc.setFont(undefined, 'normal'); y += 7;
+        doc.text(document.getElementById('c_name').value, 20, y);
+        document.getElementById('c_addr').value.split('\n').forEach(l => { y += 5; doc.text(l, 20, y); });
+        
+        doc.text(`Datum: ${document.getElementById('c_date').value}`, 140, 72);
+        doc.text(`Nr: ${document.getElementById('c_nr').value}`, 140, 77);
+
+        y = 105;
+        doc.setFontSize(16); doc.setFont(undefined, 'bold'); doc.text("ANGEBOT", 20, y);
+        y += 8; doc.setFontSize(12); doc.text(`Betreff: ${document.getElementById('c_obj').value}`, 20, y);
+
+        let tableBody = [];
+        const cats = getGroupedData();
+        
+        cats.forEach(catName => {
+            const catItems = positions.filter(p => p.category === catName);
+            tableBody.push([{ content: catName, colSpan: 5, styles: { fillColor: [241, 245, 249], fontStyle: 'bold', textColor: [37, 99, 235] } }]);
+            catItems.forEach(p => {
+                tableBody.push([
+                    p.name,
+                    p.qty,
+                    p.std,
+                    p.rate + " €",
+                    (p.qty * p.std * p.rate * riskFactor).toFixed(2) + " €"
+                ]);
+            });
+        });
+
+        doc.autoTable({
+            startY: y + 15,
+            head: [['Leistung', 'Menge', 'Std/Einh', 'Preis', 'Gesamt']],
+            body: tableBody,
+            theme: 'plain',
+            styles: { fontSize: 10, cellPadding: 3 },
+            headStyles: { fillColor: [37, 99, 235], textColor: 255 },
+            columnStyles: { 4: { halign: 'right' } }
+        });
+
+        let finalY = doc.lastAutoTable.finalY + 10;
+        if (finalY > 250) { doc.addPage(); finalY = 20; }
+        
+        doc.setFontSize(10);
+        doc.text(`Anfahrt: ${parseFloat(document.getElementById('v_travel').value).toFixed(2)} €`, 140, finalY);
+        finalY += 6;
+        doc.text(`Zwischensumme: ${document.getElementById('res-net').innerText.split(': ')[1]}`, 140, finalY);
+        finalY += 6;
+        doc.text(document.getElementById('res-vat').innerText, 140, finalY);
+        finalY += 8;
+        doc.setFontSize(12); doc.setFont(undefined, 'bold');
+        doc.text(document.getElementById('res-total').innerText, 140, finalY);
+
+        doc.save(`Angebot_${document.getElementById('c_nr').value}.pdf`);
+    }
+
+    function exportWord() {
+        const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType } = docx;
+        const riskFactor = parseFloat(document.getElementById('v_risk').value) || 1.0;
+        const cats = getGroupedData();
+
+        const tableRows = [
+            new TableRow({
+                children: [
+                    new TableCell({ children: [new Paragraph({text: "Leistung", bold: true})], width: {size: 60, type: WidthType.PERCENTAGE} }),
+                    new TableCell({ children: [new Paragraph({text: "Menge", bold: true})] }),
+                    new TableCell({ children: [new Paragraph({text: "Gesamt (€)", bold: true})] }),
+                ]
+            })
+        ];
+
+        cats.forEach(catName => {
+            const catItems = positions.filter(p => p.category === catName);
+            tableRows.push(new TableRow({
+                children: [
+                    new TableCell({ children: [new Paragraph({text: catName, bold: true, color: "2563EB"})], columnSpan: 3, shading: { fill: "F1F5F9" } })
+                ]
+            }));
+            catItems.forEach(p => {
+                const sum = (p.qty * p.std * p.rate * riskFactor).toFixed(2);
+                tableRows.push(new TableRow({
+                    children: [
+                        new TableCell({ children: [new Paragraph(p.name)] }),
+                        new TableCell({ children: [new Paragraph(p.qty.toString())] }),
+                        new TableCell({ children: [new Paragraph(sum)] }),
+                    ]
+                }));
+            });
+        });
+
+        const doc = new Document({
+            sections: [{
+                children: [
+                    new Paragraph({ children: [new TextRun({ text: "ANGEBOT", bold: true, size: 32, color: "2563EB" })], spacing: { after: 200 } }),
+                    new Paragraph({ text: document.getElementById('s_comp').value, bold: true }),
+                    new Paragraph({ text: "Betreff: " + document.getElementById('c_obj').value, spacing: { after: 200, before: 200 } }),
+                    new Table({ rows: tableRows, width: { size: 100, type: WidthType.PERCENTAGE } }),
+                    new Paragraph({ text: "\n" + document.getElementById('res-total').innerText, alignment: "right", bold: true })
+                ]
+            }]
+        });
+
+        Packer.toBlob(doc).then(blob => {
+            saveAs(blob, `Angebot_${document.getElementById('c_nr').value}.docx`);
+        });
+    }
+</script>
+</body>
+</html>
